@@ -1,9 +1,13 @@
 "use client";
 
 import * as z from "zod";
+import axios from "axios";
+import { ChatCompletionMessageParam } from "openai/resources/chat/completions";
 import { MessageSquare } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 import { Heading } from "@/components/heading";
 import { Form, FormControl, FormField, FormItem } from "@/components/ui/form";
@@ -13,6 +17,9 @@ import { Button } from "@/components/ui/button";
 import { formSchema } from "./constants";
 
 const ConversationPage = () => {
+  const router = useRouter();
+  const [messages, setMessages] = useState<ChatCompletionMessageParam[]>([]);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -24,6 +31,33 @@ const ConversationPage = () => {
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     console.log({ values });
+
+    try {
+      const userMessage: ChatCompletionMessageParam = {
+        role: "user",
+        content: values.prompt,
+      };
+
+      const newMessages = [...messages, userMessage];
+
+      const response = await axios.post("/api/conversation", {
+        messages: newMessages,
+      });
+
+      if (!response.data.content) {
+        console.log("NO CONTENT -  ERROR");
+        return;
+      }
+
+      setMessages((current) => [...current, userMessage, response.data]);
+
+      form.reset();
+    } catch (error: any) {
+      // TODO: Open Pro Modal
+      console.log(error);
+    } finally {
+      router.refresh();
+    }
   };
 
   return (
@@ -70,7 +104,17 @@ const ConversationPage = () => {
           </Form>
         </div>
 
-        <div className="space-y-4 mt-4">Messages Content</div>
+        <div className="space-y-4 mt-4">
+          <div className="flex flex-col-reverse gap-y-4">
+            {messages.map((message, idx) => (
+              <div key={idx}>
+                {typeof message.content === "string"
+                  ? message.content
+                  : "Unsupported message format"}
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );
